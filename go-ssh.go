@@ -117,7 +117,7 @@ func main() {
 					}
 				}
 			} else if opt == "-cp" {
-				if (check.opt_A | check.opt_M) != 0 {
+				if (check.opt_A | check.opt_M |check.opt_C | check.opt_S) != 0 {
 					fmt.Println("'-a' or '-m' can be used for '-sh' option")
 					return
 				}
