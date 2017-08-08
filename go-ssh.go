@@ -1,12 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"github.com/tmc/scp"
 	"golang.org/x/crypto/ssh"
 	"log"
 	"os"
 	"sync"
-    "github.com/tmc/scp"
+    "io/ioutil"
 )
 
 func Make_Config(id string, passwd string) *ssh.ClientConfig {
@@ -19,53 +21,65 @@ func Make_Config(id string, passwd string) *ssh.ClientConfig {
 	}
 	return config
 }
+
+type Config struct {
+	Addr   string
+	Role   string
+	Port   string
+	Passwd string
+}
+
 func main() {
 	opt := os.Args[1]
-	addr := os.Args[2] + ":" + os.Args[3]
-	id := os.Args[4]
-	passwd := os.Args[5]
+	file, err := ioutil.ReadFile(os.Args[2])
+	if err != nil {
+		log.Fatal("Fail to read JSON: ", err)
+	}
+	var data []Config
+	json.Unmarshal(file, &data)
 	var wg sync.WaitGroup
-	config := Make_Config(id, passwd)
-
-	client, err := ssh.Dial("tcp", addr, config)
-	if err != nil {
-		log.Fatal("Failed to dial: ", err)
-	}
-	session, err := client.NewSession()
-	if err != nil {
-		log.Fatal("Failed to create session: ", err)
-	}
-	if opt == "-sh" {
-		var cmd string
-		for i := 6; i < len(os.Args); i++ {
-			cmd = cmd + " " + os.Args[i]
-		}
+	for i := 0; i < len(data); i++ {
 		wg.Add(1)
-		go func(session *ssh.Session, cmd string) {
+		go func(ip, port, passwd string) {
 			defer wg.Done()
-			defer session.Close()
-			if err := session.Run(cmd); err != nil {
-				log.Fatal("Failed to run: " + err.Error())
+			addr := ip + ":" + port
+			config := Make_Config("vagrant", passwd)
+
+			client, err := ssh.Dial("tcp", addr, config)
+			if err != nil {
+				log.Fatal("Failed to dial: ", err)
 			}
-		}(session, cmd)
-	} else if opt == "-cp" {
-		desPath := os.Args[len(os.Args)-1]
-		for i := 6; i < len(os.Args)-1; i++ {
-			wg.Add(1)
-			go func(filePath, desPath string, client *ssh.Client) {
+			if opt == "-sh" {
 				session, err := client.NewSession()
+				defer session.Close()
 				if err != nil {
 					log.Fatal("Failed to create session: ", err)
 				}
-				defer wg.Done()
-				err = scp.CopyPath(filePath, desPath, session)
-				if err != nil {
-					log.Fatal("Failed to scp: " + err.Error())
+				cmd := os.Args[3]
+				if err := session.Run(cmd); err != nil {
+					log.Fatal("Failed to run: " + err.Error())
 				}
-			}(os.Args[i], desPath, client)
-		}
-	} else {
-		fmt.Println("Usage : <-sh|-cp> ADDR ID PASSWD <CMD|SOURCE FILE> <|DESTINATION FILE>")
+			} else if opt == "-cp" {
+				desPath := os.Args[len(os.Args)-1]
+				var cp_wg sync.WaitGroup
+				for j := 3; j < len(os.Args)-1; j++ {
+					cp_wg.Add(1)
+					go func(filePath, desPath string, client *ssh.Client) {
+						session, err := client.NewSession()
+                            defer session.Close()
+						if err != nil {
+							log.Fatal("Failed to create session: ", err)
+						}
+						defer cp_wg.Done()
+						err = scp.CopyPath(filePath, desPath, session)
+						if err != nil {
+							log.Fatal("Failed to scp: " + err.Error())
+						}
+					}(os.Args[j], desPath, client)
+				}
+				cp_wg.Wait()
+			}
+		}(data[i].Addr, data[i].Port, data[i].Passwd)
 	}
 	wg.Wait()
 	fmt.Println("Complete")
