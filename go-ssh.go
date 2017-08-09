@@ -116,7 +116,7 @@ func main() {
 		go func(ip, port, passwd, role string) {
 			defer wg.Done()
 			addr := ip + ":" + port
-			config := Make_Config("vagrant", passwd)
+			config := Make_Config("root", passwd)
 			client, err := ssh.Dial("tcp", addr, config)
 			if err != nil {
 				log.Fatal("Failed to dial: ", err)
