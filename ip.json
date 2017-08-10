@@ -6,9 +6,9 @@
         "Passwd" : "dlrxntm123"
 },
 {
-    "Addr" : "220.230.124.88",
+    "Addr" : "192.168.50.4",
     "Role" : "agent",
-    "Port" : "2001",
-    "Passwd" : "dlrxntm123"
+    "Port" : "22",
+    "Passwd" : "1234"
 }
 ]
